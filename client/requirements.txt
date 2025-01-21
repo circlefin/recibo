@@ -1,0 +1,6 @@
+anvil_web3
+eth_abi
+psutil
+pycryptodome
+pyyaml
+web3

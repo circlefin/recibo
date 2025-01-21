@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+
+# Required for OpenZeppelin library ERC20Permit uses transient storage
+evm_version = "cancun"
+
+# unused-param: Recibo stores messages in transaction calldata but does not actively use them.
+# 2394: OpenZeppelin ERC20Permit throws warning 2394: Transient storage as defined by EIP-1153 can break the composability of smart contracts.
+ignored_error_codes = ["unused-param", 2394]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
