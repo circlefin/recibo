@@ -15,10 +15,7 @@
 # limitations under the License.
 
 name: Recibo Project Python CI
-on:
-  push:
-    branches: [master]
-  pull_request:
+on: [pull_request]
 
 permissions: read-all
 
