@@ -1,0 +1,19 @@
+# Compiler files
+cache/
+out/
+
+# Ignore IDE files
+.DS_Store
+.idea/
+
+# Dotenv file
+.env
+client/.venv
+client/.recibo_env
+client/.gasless_token_env
+client/.token_env
+client/__pycache__/
+
+# Test data
+client-test-data/
+client/test-data/
