@@ -16,12 +16,15 @@
 
 name: Recibo Contracts CI
 on:
-on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:  
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 permissions: read-all
 
