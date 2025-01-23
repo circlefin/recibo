@@ -100,6 +100,15 @@ contract ReciboGasTest is GaslessTestBase, BigMsg {
         vm.stopPrank();
     }
 
+    /** 
+    * GAS TESTS
+    *
+    * Each test measures the gas cost of a function call with a message of a specific length.
+    * Foundry runs each unit test function as a single transaction. Since gas usage goes down when
+    * smart contracts modify "warm" (used) storage addresses, we want to ensure as many addresses
+    * as possible are cold. We do this by running measurement in a separate unit test function.
+    */
+
     function measure_transferWithMsg(uint256 len) public {
         string memory group = Strings.toString(len);
         info.message = BigMsg.getBytes(len);

@@ -26,7 +26,7 @@ contract BigMsg {
     function generateBytes(uint256 len) internal pure returns (bytes memory) {
         bytes memory result = new bytes(len);
         for(uint i = 0; i < 5000; i++) {
-            result[i] = bytes1(uint8(i % 256));
+            result[i] = bytes1(uint8(i % 256)); // uint8 0-255
         }
         return result;
     }
