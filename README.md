@@ -1,7 +1,7 @@
 # Recibo
 
 ## License
-This work is licensed under `SPDX-License-Identifier: Apache-2.0`. It has not beed audited, comes with
+This work is licensed under `SPDX-License-Identifier: Apache-2.0`. It has not been audited, comes with
 no guarantees, and is provided as is. Use at your own risk.
 
 ## About
