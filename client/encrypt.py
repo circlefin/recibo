@@ -20,6 +20,10 @@ from Crypto.Cipher import AES, PKCS1_OAEP
 import io
 import os
 
+def read_pub_key(pubfile_name):
+    with open(pubfile_name, 'r') as pubfile:
+        pubkey_string = pubfile.read()
+        return pubkey_string
 
 def crypto_encrypt_with_keystring(pubkey_string, msg_string):
     data = msg_string.encode("utf-8")
@@ -46,10 +50,8 @@ def crypto_encrypt_with_keystring(pubkey_string, msg_string):
     return byte_array
 
 def crypto_encrypt(pubfile_name, msg_string):
-    with open(pubfile_name, 'r') as pubfile:
-        pubkey_string = pubfile.read()
-        return crypto_encrypt_with_keystring(pubkey_string, msg_string)   
-
+    pubkey_string = read_pub_key(pubfile_name)
+    return crypto_encrypt_with_keystring(pubkey_string, msg_string)   
 
 def crypto_decrypt_with_keystring(keyfile_string, byte_array, password=None):
     # parse byte_array
@@ -84,11 +86,12 @@ def generate_rsa_keys(outfile, password=None, keylength=3072):
         protection='PBKDF2WithHMAC-SHA512AndAES256-CBC',
         prot_params={'iteration_count':131072})
 
-    os.makedirs(os.path.dirname(outfile), exist_ok=True)
+    dir_path = os.path.dirname(outfile)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)    
     with open(outfile + "_key.pem", "wb") as f:
         f.write(private_key)
 
     public_key = key.publickey().export_key()
     with open(outfile + "_pub.pem", "wb") as f:
        f.write(public_key)
-

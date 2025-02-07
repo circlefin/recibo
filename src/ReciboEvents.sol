@@ -25,6 +25,13 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @notice Defines events
  */
 contract ReciboEvents {
+
+    event SendMsg(
+        address from,
+        address indexed messageFrom,
+        address indexed messageTo
+    );
+
     event TransferWithMsg(
         address from,
         address indexed to,

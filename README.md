@@ -192,12 +192,102 @@ python3 recibocli.py permit_and_transfer_with_msg \
     --encrypt_pub_keyfile test-data/bob_pub.pem 
 ```
 
+Command `transfer_with_authorization_with_msg` transfers funds from the owner to the receiver. 
+This command only works with tokens that support EIP-3009.
+The client uses the owner's private key to sign an EIP-3009 authorization giving the Recibo smart
+contract an permission to spend the owner's funds. The client will call
+`transferWithAuthorizationWithMsg()` on the Recibo smart contract, which will call `transferWithAuthorization()` 
+on the token.
+```
+# account[0] (Alice) private key is 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+# account[1] (Bob) address is 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+# Bob's public key is stored in test-data/bob_pub.pem
+# Alice's public key is stored in test-data/alice_pub.pem
+python3 recibocli.py transfer_with_authorization_with_msg \
+    --owner_private_key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --receiver_address 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
+    --value 25 \
+    --message 'Privet my friend! I am sending you 25 USDC for your birthday' \
+    --encrypt_pub_keyfile test-data/bob_pub.pem \
+    --response_pub_keyfile test-data/alice_pub.pem
+```
+
 Command `deploy_recibo` will deploy just the Recibo contract and point it to an existing ERC-20 token.
 ```
 # account[0] (Alice) private key is 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 # token_address must point to a deployed ERC-20 token.
 python3 recibocli.py deploy_recibo \
     --deployer_private_key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --token_address 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955
+```
+
+#### Sending Messages and Responses
+You can insert a response public key into the metadata of your message. Add the optional parameter
+`--response_pub_keyfile <filename>` to any command. 
+
+Alice generates a key pair for herself.
+```
+# The public key will be stored in test-data/alice_pub.pem and the private key will be stored in test-data/alice_key.pem.
+python3 recibocli.py gen_rsa_key \
+    --outfile test-data/alice \
+    --keylength 3072 \
+    --password 'my secret passphrase'
+```
+
+Now Alice transfers tokens to Bob and includes her public key file in the metadata
+```
+# account[0] (Alice) private key is 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+# account[1] (Bob) address is 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+# Bob's public key is stored in test-data/bob_pub.pem
+# Alice's public key is stored in test-data/alice_pub.pem
+python3 recibocli.py transfer_with_authorization_with_msg \
+    --owner_private_key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --receiver_address 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
+    --value 25 \
+    --message 'Privet my friend! I am sending you 25 USDC for your birthday' \
+    --encrypt_pub_keyfile test-data/bob_pub.pem \
+    --response_pub_keyfile test-data/alice_pub.pem
+```
+
+Bob can use `read_msg` to download all of his transactions
+```
+# account[1] (Bob) address is 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+# Bob's private key is stored in test-data/bob_key.pem
+python3 recibocli.py read_msg \
+    --receiver_address 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
+    --decrypt_keyfile test-data/bob_key.pem \
+    --password 'my secret passphrase'
+```
+
+Now Bob chooses a tx_hash and responds using `respond_to_tx`.
+```
+# account[1] (Bob) private key is 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+# You need to get the tx_hash of the transaction to which Bob is responding
+# Bob's public key is stored in test-data/bob_pub.pem
+python3 recibocli.py respond_to_tx \
+    --owner_private_key 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d \
+    --tx_hash 0xb0fe8245df3efba03dda8f2e429ec59a3423ab2d233d90bc254e4b46f289c0c2 \
+    --message 'Thank you for your generous birthday gift!' \
+    --response_pub_keyfile test-data/bob_pub.pem
+```
+
+Now Alice can read Bob's response.
+```
+# account[0] (Alice) address is 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+# Alice's private key is stored in test-data/alice_key.pem
+python3 recibocli.py read_msg \
+    --receiver_address 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC \
+    --decrypt_keyfile test-data/alice_key.pem \
+    --password 'my secret passphrase'
+```
+
+
+Command `send_msg` will send a message using the Recibo contract without transfering any tokens.
+```
+# account[0] (Alice) private key is 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+# token_address must point to a deployed ERC-20 token.
+python3 recibocli.py send_msg \
+    -- 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
     --token_address 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955
 ```
 

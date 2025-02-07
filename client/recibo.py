@@ -16,10 +16,11 @@
 
 from config_recibo import ReciboConfig
 from config_token import TokenConfig
-from encrypt import crypto_encrypt, crypto_decrypt
+from encrypt import crypto_encrypt, crypto_decrypt, read_pub_key, crypto_encrypt_with_keystring
 from eth_account import Account
 import web3
 import eth_abi
+import json
 
 # Container class to store information abut Recibo transaction
 class ReciboTx:
@@ -43,7 +44,6 @@ class Event:
         self.tx_hash = log['transactionHash'].hex()
         self.message_from = log['args']['messageFrom']
         self.message_to = log['args']['messageTo']
-        self.value = log['args']['value']
 
     def __str__(self):
         """
@@ -68,6 +68,7 @@ class ApproveWithMsgEvent(Event):
         super().__init__(log)
         self.owner = log['args']['owner']
         self.spender = log['args']['spender']
+        self.value = log['args']['value']
 
 # TransferWithMsgEvent class inheriting from Event        
 class TransferWithMsgEvent(Event):
@@ -75,18 +76,61 @@ class TransferWithMsgEvent(Event):
         super().__init__(log)
         self.to = log['args']['to']
         self.sender = log['args']['from']
+        self.value = log['args']['value']
+
+# SendMsgEvent class inheriting from Event        
+class SendMsgEvent(Event):
+    def __init__(self, log):
+        super().__init__(log)
+        self.sender = log['args']['from']
+        self.value = 0
+
+# Information about a Recibo transaction
+class DecryptedReciboTx():
+    def __init__(self, event, plaintext, metadata):
+        for attr in dir(event):
+            if not attr.startswith('_'):  # Skip special/protected attributes
+                eventvalue = getattr(event, attr)
+                setattr(self, attr, eventvalue)
+        self.plaintext = plaintext
+        self.metadata = metadata
+
 
 # Recibo class to handle blockchain interactions 
 class Recibo():
     PERMIT_TYPEHASH = bytes.fromhex('6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9')
     TRANSFER_TYPEHASH =  bytes.fromhex('7c7c6cdb67a18743f49ec6fa9b35f50d52ed05cbed4cc592e13b44501c1a2267')
-    
-    RSA_METADATA = """{
-    version: 'circle-0.1beta',
-    encrypt: "RSA_PKCS1_OAEP_AES_EAX"
-    }"""
-
     MAX_UNIT256 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    
+    VERSION = "circle-0.1beta"
+    ENCRYPT =  "RSA_PKCS1_OAEP_AES_EAX"
+    NOENCRYPT = "None"
+
+    # IANA media types
+    PLAINTEXT = "text/plain;charset=UTF-8"
+    PNG = "image/png"
+    JPEG = "image/jpeg"
+    GIF = "image/gif"
+
+    @staticmethod
+    def generate_encrypt_metadata(version, encrypt_alg_id, mime=None, encrypt_pub_key_filename=None, response_pub_key_filename = None):
+        metadata = {
+            "version": version,
+            "encrypt": encrypt_alg_id
+        }
+        
+        if mime:
+            metadata["mime"] = mime
+
+        if encrypt_pub_key_filename:
+            metadata["encrypt_pub_key"] = read_pub_key(encrypt_pub_key_filename)
+            
+        if response_pub_key_filename:
+            metadata["response_pub_key"] = read_pub_key(response_pub_key_filename)
+
+        return json.dumps(metadata, indent=2)
+
+    RSA_METADATA = generate_encrypt_metadata('circle-0.1beta', 'RSA_PKCS1_OAEP_AES_EAX')    
 
     def __init__(self, config_file):
         """
@@ -260,6 +304,25 @@ class Recibo():
         w3 = web3.Web3(web3.Web3.HTTPProvider(self.recibo_config.rpc_url))
         signed_message = w3.eth.account.unsafe_sign_hash(transfer_authorization, private_key=signer_private_key)
         return signed_message.signature
+
+    def send_msg(self, owner_private_key, receiver_address, metadata, message_as_hex):
+        """
+        Sends an encrypted message on-chain to a specified receiver address.
+        
+        Args:
+            owner_private_key (str): Private key of the message sender
+            receiver_address (str): Ethereum address of message recipient 
+            metadata (str): JSON string containing message metadata (encryption method, keys, etc)
+            message_as_hex (str): Hex-encoded encrypted message content
+            
+        Returns:
+            dict: Transaction receipt from sending the message on-chain
+        """
+        owner_address = Account.from_key(owner_private_key).address
+        info = Recibo.ReciboInfoStruct(owner_address, receiver_address, metadata, message_as_hex)
+        tx_function = self.recibo.functions.sendMsg(info)
+        receipt = self.recibo_config.send_transaction(tx_function, owner_private_key)
+        return receipt
 
     def approve_recibo(self, owner_private_key, value):
         """
@@ -636,10 +699,44 @@ class Recibo():
 
         Returns:
             str: The decrypted plaintext message from the transaction.
+            str: the metadata
         """
         tx = self.get_transaction(tx_hash)
         plaintext = self.decrypt(receiver_key_filename, tx.message, password)
-        return plaintext
+        return plaintext, tx.metadata
+
+    def respond_to_tx(self, tx_hash, owner_private_key, metadata, message_plaintext):
+        """
+        Responds to a message in a transaction by sending an encrypted response back to the original sender.
+        
+        Args:
+            tx_hash (str): Hash of the transaction containing the original message
+            owner_private_key  (str): Private key of the responder 
+            metadata  (str): Metadata to attach to response message
+            message_plaintext  (str): Plain text response message to encrypt and send
+            
+        Returns:
+            dict: Transaction receipt from sending the response
+            
+        Flow:
+            1. Gets original transaction from blockchain
+            2. Extracts response public key from original metadata json
+            3. Encrypts response message using sender's public key
+            4. Creates ReciboInfo struct with encrypted message
+            5. Sends transaction with response message
+        """
+        tx = self.get_transaction(tx_hash)
+        metadata_dict = json.loads(tx.metadata)
+        response_pub_key = metadata_dict['response_pub_key']
+        ciphertext = crypto_encrypt_with_keystring(response_pub_key, message_plaintext)
+        message_as_hex = "0x" + ciphertext.hex()
+        owner_address = Account.from_key(owner_private_key).address
+        info = Recibo.ReciboInfoStruct(owner_address, tx.message_from, metadata, message_as_hex)
+        print(f'info {info[1]}')
+        tx_function = self.recibo.functions.sendMsg(info)
+        receipt = self.recibo_config.send_transaction(tx_function, owner_private_key)
+        return receipt
+
 
     def get_events_for(self, message_to_address):
         """
@@ -649,16 +746,22 @@ class Recibo():
             message_to_address (str): The address to filter events by.
 
         Returns:
-            tuple: A tuple containing lists of TransferWithMsgEvent and ApproveWithMsgEvent objects.
+            tuple: A tuple containing lists of TransferWithMsgEvent, ApproveWithMsgEvent, and SendMsgEvent objects.
         """
         contract = self.recibo_config.get_contract()
         logs = contract.events.TransferWithMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
         transfer_events = [TransferWithMsgEvent(log) for log in logs]
+
         logs = contract.events.ApproveWithMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
         approve_events = [ApproveWithMsgEvent(log) for log in logs]
+
+        logs = contract.events.SendMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
+        sendmsg_events = [SendMsgEvent(log) for log in logs]
+
         transfer_events = [event for event in transfer_events if event.message_to == message_to_address]
         approve_events = [event for event in approve_events if event.message_to == message_to_address]
-        return (transfer_events, approve_events)
+        sendmsg_events = [event for event in sendmsg_events if event.message_to == message_to_address]
+        return (transfer_events, approve_events, sendmsg_events)
 
     def get_transaction(self, tx_hash):
         """
@@ -673,3 +776,26 @@ class Recibo():
         function, decoded_data = self.recibo_config.get_transaction(tx_hash)
         return ReciboTx(decoded_data)
     
+    def read_msg(self, message_to_address, receiver_key_filename, password=None):
+        """
+        Retrieves and decrypts all messages sent to a specific address.
+        
+        Args:
+            message_to_address (str): Ethereum address of message recipient
+            receiver_key_filename (str): Path to recipient's private key file for decryption
+            password (str): Optional password to decrypt private key file
+            
+        Returns:
+            list[DecryptedReciboTx]: List of decrypted transactions containing:
+                - Original blockchain event
+                - Decrypted message plaintext
+                - Message metadata
+        """
+        transfer_events, approve_events, sendmsg_events = self.get_events_for(message_to_address)
+        events = transfer_events + approve_events + sendmsg_events
+        results = []
+        for event in events:
+            plaintext, metadata = self.decrypt_tx(event.tx_hash, receiver_key_filename, password)
+            decryptedtx = DecryptedReciboTx(event, plaintext, metadata)
+            results.append(decryptedtx)
+        return results

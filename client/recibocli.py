@@ -57,6 +57,38 @@ def deploy_recibo(args):
         return 1
     return 0  
 
+def send_msg(args):
+    ciphertext_msg_as_hex = Recibo.encrypt(args.encrypt_pub_keyfile, args.message)
+    print(f'Execute Recibo.sendMsg()')
+    metadata = Recibo.generate_encrypt_metadata(
+        Recibo.VERSION,
+        Recibo.ENCRYPT,
+        response_pub_key_filename=args.response_pub_keyfile
+    )
+    receipt = recibo.send_msg(
+        args.owner_private_key, 
+        args.receiver_address,
+        metadata, 
+        ciphertext_msg_as_hex
+    ) 
+    return print_receipt(receipt)
+
+def respond_to_tx(args):
+    print(f'Execute Recibo.sendMsg()')
+    metadata = Recibo.generate_encrypt_metadata(
+        Recibo.VERSION,
+        Recibo.ENCRYPT,
+        response_pub_key_filename=args.response_pub_keyfile
+    )
+    receipt = recibo.respond_to_tx(
+        args.tx_hash,
+        args.owner_private_key,
+        metadata,
+        args.message)
+
+    return print_receipt(receipt)
+
+
 def transfer_with_authorization_with_msg(args):
     owner_address = Account.from_key(args.owner_private_key).address
     ciphertext_msg_as_hex = Recibo.encrypt(args.encrypt_pub_keyfile, args.message)
@@ -75,6 +107,11 @@ def transfer_with_authorization_with_msg(args):
     signature = recibo.sign_transfer_authorization(args.owner_private_key, transfer_authorization)
 
     print(f'Execute Recibo.TransferWithAuthorizationWithMsg()')
+    metadata = Recibo.generate_encrypt_metadata(
+        Recibo.VERSION,
+        Recibo.ENCRYPT,
+        response_pub_key_filename=args.response_pub_keyfile
+    )
     receipt = recibo.transfer_with_authorization_with_msg(
             args.owner_private_key,
             owner_address,
@@ -84,7 +121,7 @@ def transfer_with_authorization_with_msg(args):
             valid_before,
             nonce,
             signature,
-            Recibo.RSA_METADATA,
+            metadata,
             ciphertext_msg_as_hex
     )
     return print_receipt(receipt)    
@@ -102,11 +139,16 @@ def transfer_from_with_msg(args):
 
     # owner calls transferFromWithMsg
     print(f'Execute Recibo.TransferFromWithMsg()')
+    metadata = Recibo.generate_encrypt_metadata(
+        Recibo.VERSION,
+        Recibo.ENCRYPT,
+        response_pub_key_filename=args.response_pub_keyfile
+    )
     receipt = recibo.transfer_from_with_msg(
         args.owner_private_key, 
         args.receiver_address, 
         args.value, 
-        Recibo.RSA_METADATA, 
+        metadata, 
         ciphertext_msg_as_hex
     ) 
     return print_receipt(receipt)
@@ -125,6 +167,11 @@ def permit_with_msg(args):
     signature = recibo.sign_permit(args.owner_private_key, permit)
 
     print(f'Execute Recibo.PermitWithMsg()')
+    metadata = Recibo.generate_encrypt_metadata(
+        Recibo.VERSION,
+        Recibo.ENCRYPT,
+        response_pub_key_filename=args.response_pub_keyfile
+    )
     receipt = recibo.permit_with_msg(
         args.owner_private_key, 
         args.spender_address, 
@@ -132,7 +179,7 @@ def permit_with_msg(args):
         signature.v, 
         signature.r, 
         signature.s, 
-        Recibo.RSA_METADATA, 
+        metadata, 
         ciphertext_msg_as_hex
     )
     return print_receipt(receipt)    
@@ -152,6 +199,11 @@ def permit_and_transfer_with_msg(args):
     signature = recibo.sign_permit(args.owner_private_key, permit)
 
     print(f'Execute Recibo.PermitAndTransferWithMsg()')
+    metadata = Recibo.generate_encrypt_metadata(
+        Recibo.VERSION,
+        Recibo.ENCRYPT,
+        response_pub_key_filename=args.response_pub_keyfile
+    )
     receipt = recibo.permit_and_transfer_with_msg(
         args.owner_private_key, 
         args.receiver_address, 
@@ -160,7 +212,7 @@ def permit_and_transfer_with_msg(args):
         signature.v, 
         signature.r, 
         signature.s, 
-        Recibo.RSA_METADATA, 
+        metadata, 
         ciphertext_msg_as_hex)    
     return print_receipt(receipt)    
 
@@ -170,13 +222,11 @@ def read_msg(args):
     if hasattr(args, 'password'):
         password = args.password
 
-    transfer_events, approve_events = recibo.get_events_for(args.receiver_address)
-    events = transfer_events + approve_events
-    print(f'Found {len(events)} transactions with messages for {args.receiver_address}:')
+    decryptedtx = recibo.read_msg(args.receiver_address, args.decrypt_keyfile, password)
+    print(f'Found {len(decryptedtx)} transactions with messages for {args.receiver_address}:')
     print()
-    for event in events:
-        message = recibo.decrypt_tx(event.tx_hash, args.decrypt_keyfile, password)
-        print(f'Transaction: {event.event}\nTx Hash: {event.tx_hash}\nMessageFrom: {event.message_from}\nValue: {event.value}\nMessage: {message}')
+    for dtx in decryptedtx:
+        print(f'Transaction: {dtx.event}\nTx Hash: {dtx.tx_hash}\nMetadata: {dtx.metadata}\nMessageFrom: {dtx.message_from}\nValue: {dtx.value}\nMessage: {dtx.plaintext}')
         print()
     return 0
 
@@ -206,6 +256,23 @@ def main():
     parser_deploy_recibo.add_argument("--token_address", type=str, required=True, help="Token address")
     parser_deploy_recibo.add_argument("--config_file", type=str, required=False, help="Location of yaml config file. Defaults to ./anvil_config.yaml")
 
+    # Subparser for send_msg
+    parser_send_msg = subparsers.add_parser("send_msg", help="Call send_msg method")
+    parser_send_msg.add_argument("--owner_private_key", type=str, required=True, help="Owner address")
+    parser_send_msg.add_argument("--receiver_address", type=str, required=True, help="Receiver address")
+    parser_send_msg.add_argument("--message", type=str, required=True, help="Message string")
+    parser_send_msg.add_argument("--encrypt_pub_keyfile", type=str, required=True, help="Location of public key file")
+    parser_send_msg.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
+    parser_send_msg.add_argument("--response_pub_keyfile", type=str, required=False, help="Location of sender's public key file. Add to metadata so receiver can respond.")
+
+    # Subparser for respond_to_tx
+    parser_respond_to_tx = subparsers.add_parser("respond_to_tx", help="Call send_msg method")
+    parser_respond_to_tx.add_argument("--owner_private_key", type=str, required=True, help="Owner address")
+    parser_respond_to_tx.add_argument("--tx_hash", type=str, required=True, help="Hash of Recibo transaction to which to respond")
+    parser_respond_to_tx.add_argument("--message", type=str, required=True, help="Message string")
+    parser_respond_to_tx.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
+    parser_respond_to_tx.add_argument("--response_pub_keyfile", type=str, required=False, help="Location of sender's public key file. Add to metadata so receiver can respond.")
+
     # Subparser for transfer_with_authorization_with_msg
     parser_transfer_with_auth = subparsers.add_parser("transfer_with_authorization_with_msg", help="Call transfer_with_authorization_with_msg method")
     parser_transfer_with_auth.add_argument("--owner_private_key", type=str, required=True, help="Owner address")
@@ -214,6 +281,7 @@ def main():
     parser_transfer_with_auth.add_argument("--message", type=str, required=True, help="Message string")
     parser_transfer_with_auth.add_argument("--encrypt_pub_keyfile", type=str, required=True, help="Location of public key file")
     parser_transfer_with_auth.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
+    parser_transfer_with_auth.add_argument("--response_pub_keyfile", type=str, required=False, help="Location of sender's public key file. Add to metadata so receiver can respond.")
 
     # Subparser for transfer_from_with_msg
     parser_transfer_from = subparsers.add_parser("transfer_from_with_msg", help="Call transfer_from_with_msg method")
@@ -223,6 +291,7 @@ def main():
     parser_transfer_from.add_argument("--message", type=str, required=True, help="Message string")
     parser_transfer_from.add_argument("--encrypt_pub_keyfile", type=str, required=True, help="Message string")
     parser_transfer_from.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
+    parser_transfer_from.add_argument("--response_pub_keyfile", type=str, required=False, help="Location of sender's public key file. Add to metadata so receiver can respond.")
 
     # Subparser for permit_with_msg
     parser_permit_with_msg = subparsers.add_parser("permit_with_msg", help="Call permit_with_msg method")
@@ -232,6 +301,7 @@ def main():
     parser_permit_with_msg.add_argument("--message", type=str, required=True, help="Message string")
     parser_permit_with_msg.add_argument("--encrypt_pub_keyfile", type=str, required=True, help="Message string")
     parser_permit_with_msg.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
+    parser_permit_with_msg.add_argument("--response_pub_keyfile", type=str, required=False, help="Location of sender's public key file. Add to metadata so receiver can respond.")
 
     # Subparser for permit_and_transfer_with_msg
     parser_permit_and_transfer_with_msg = subparsers.add_parser("permit_and_transfer_with_msg", help="Call permit_and_transfer_with_msg method")
@@ -241,6 +311,7 @@ def main():
     parser_permit_and_transfer_with_msg.add_argument("--message", type=str, required=True, help="Message string")
     parser_permit_and_transfer_with_msg.add_argument("--encrypt_pub_keyfile", type=str, required=True, help="Message string")
     parser_permit_and_transfer_with_msg.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
+    parser_permit_and_transfer_with_msg.add_argument("--response_pub_keyfile", type=str, required=False, help="Location of sender's public key file. Add to metadata so receiver can respond.")
 
     # Subparsers read_msg
     parser_read_msg = subparsers.add_parser("read_msg", help="Download transactions and decrypt messages for specified receiver address")
@@ -264,6 +335,10 @@ def main():
         exit_code = deploy(args)
     elif args.command == "deploy_recibo":
         exit_code = deploy_recibo(args)
+    elif args.command == "send_msg":
+        exit_code = send_msg(args)
+    elif args.command == "respond_to_tx":
+        exit_code = respond_to_tx(args)
     elif args.command == "transfer_with_authorization_with_msg":
         exit_code = transfer_with_authorization_with_msg(args)
     elif args.command == "transfer_from_with_msg":
