@@ -276,7 +276,7 @@ Now Alice can read Bob's response.
 # account[0] (Alice) address is 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 # Alice's private key is stored in test-data/alice_key.pem
 python3 recibocli.py read_msg \
-    --receiver_address 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC \
+    --receiver_address 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 \
     --decrypt_keyfile test-data/alice_key.pem \
     --password 'my secret passphrase'
 ```
@@ -332,10 +332,5 @@ Troubleshooting: check your yaml config file for the name of the tokena and Reci
 
 ### Encryption/Decryption
 The Recibo smart contract accepts arbitrary encoded messages along with string metadata that
-can contain encoding information. The client library in this repository encrypts messages using 
-RSA key files stored in PEM file format. The CLI can generate RSA keys for you.
-
-The encryption algorithm is RSA PKCS1_OAEP with AES-256 in EAX mode. Each ciphertext
-uses a unique AES-256 session key to encrypt the message. The session key is encrypted with RSA PKCS1_OAEP.
-
-
+can contain encoding information. The client library supports PGP encryption (recommended), RSA encryption with AES-256 session key,
+and plaintext. The CLI only supports PGP.

@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+# This library uses PyCryptodome to provide RSA encryption with AES-256 session keys.
+# Each ciphertext uses a unique AES-256 session key to encrypt the message. The 
+# session key is encrypted with RSA PKCS1_OAEP. This library is for research purposes only
+# and we recommend using encrypt_pgp instead.
+
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, PKCS1_OAEP

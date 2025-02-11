@@ -16,7 +16,7 @@
 
 from config_recibo import ReciboConfig
 from config_token import TokenConfig
-from encrypt import crypto_encrypt, crypto_decrypt, read_pub_key, crypto_encrypt_with_keystring
+from recibo_crypto import ReciboCrypto
 from eth_account import Account
 import web3
 import eth_abi
@@ -101,36 +101,9 @@ class Recibo():
     PERMIT_TYPEHASH = bytes.fromhex('6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9')
     TRANSFER_TYPEHASH =  bytes.fromhex('7c7c6cdb67a18743f49ec6fa9b35f50d52ed05cbed4cc592e13b44501c1a2267')
     MAX_UNIT256 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
-    
-    VERSION = "circle-0.1beta"
-    ENCRYPT =  "RSA_PKCS1_OAEP_AES_EAX"
-    NOENCRYPT = "None"
 
-    # IANA media types
-    PLAINTEXT = "text/plain;charset=UTF-8"
-    PNG = "image/png"
-    JPEG = "image/jpeg"
-    GIF = "image/gif"
-
-    @staticmethod
-    def generate_encrypt_metadata(version, encrypt_alg_id, mime=None, encrypt_pub_key_filename=None, response_pub_key_filename = None):
-        metadata = {
-            "version": version,
-            "encrypt": encrypt_alg_id
-        }
-        
-        if mime:
-            metadata["mime"] = mime
-
-        if encrypt_pub_key_filename:
-            metadata["encrypt_pub_key"] = read_pub_key(encrypt_pub_key_filename)
-            
-        if response_pub_key_filename:
-            metadata["response_pub_key"] = read_pub_key(response_pub_key_filename)
-
-        return json.dumps(metadata, indent=2)
-
-    RSA_METADATA = generate_encrypt_metadata('circle-0.1beta', 'RSA_PKCS1_OAEP_AES_EAX')    
+    PGP_METADATA = ReciboCrypto.generate_encrypt_metadata(ReciboCrypto.VERSION, ReciboCrypto.ENCRYPT_PGP)
+    RSA_METADATA = ReciboCrypto.generate_encrypt_metadata(ReciboCrypto.VERSION, ReciboCrypto.ENCRYPT_RSA)
 
     def __init__(self, config_file):
         """
@@ -654,7 +627,7 @@ class Recibo():
         return recibo_address
 
     @staticmethod
-    def encrypt(receiver_pub_key_filename, plaintext):
+    def encrypt(receiver_pub_key_filename, plaintext, encrypt_alg=ReciboCrypto.ENCRYPT_PGP):
         """
         Encrypts the given plaintext using the receiver's public key.
 
@@ -666,11 +639,13 @@ class Recibo():
         Returns:
             str: The encrypted message as a hex string prefixed with "0x".
         """
-        ciphertext = crypto_encrypt(receiver_pub_key_filename, plaintext)
+        ciphertext = ''
+        crypto = ReciboCrypto.get_cryptomodule(encrypt_alg)
+        ciphertext = crypto.crypto_encrypt(receiver_pub_key_filename, plaintext)
         return "0x" + ciphertext.hex()
 
     @staticmethod
-    def decrypt(receiver_key_filename, ciphertext, password=None):
+    def decrypt(receiver_key_filename, ciphertext, password=None, encrypt_alg=ReciboCrypto.ENCRYPT_PGP):
         """
         Decrypts the given ciphertext using the receiver's private key.
 
@@ -683,10 +658,11 @@ class Recibo():
         Returns:
             str: The decrypted plaintext message.
         """
-        plaintext = crypto_decrypt(receiver_key_filename, ciphertext, password)
+        crypto = ReciboCrypto.get_cryptomodule(encrypt_alg)
+        plaintext = crypto.crypto_decrypt(receiver_key_filename, ciphertext, password)
         return plaintext
 
-    def decrypt_tx(self, tx_hash, receiver_key_filename, password=None):
+    def decrypt_tx(self, tx_hash, receiver_key_filename, password=None, encrypt_alg=ReciboCrypto.ENCRYPT_PGP):
         """
         Decrypts the message in a transaction using the receiver's private key.
         Retreives the transaction with the specified tx_hash from the blockchain
@@ -702,7 +678,7 @@ class Recibo():
             str: the metadata
         """
         tx = self.get_transaction(tx_hash)
-        plaintext = self.decrypt(receiver_key_filename, tx.message, password)
+        plaintext = self.decrypt(receiver_key_filename, tx.message, password, encrypt_alg)
         return plaintext, tx.metadata
 
     def respond_to_tx(self, tx_hash, owner_private_key, metadata, message_plaintext):
@@ -727,12 +703,13 @@ class Recibo():
         """
         tx = self.get_transaction(tx_hash)
         metadata_dict = json.loads(tx.metadata)
-        response_pub_key = metadata_dict['response_pub_key']
-        ciphertext = crypto_encrypt_with_keystring(response_pub_key, message_plaintext)
+        response_pub_key = metadata_dict.get('response_pub_key', None)
+        response_encrypt_alg_id = metadata_dict.get('response_encrypt_alg_id', None)
+        crypto = ReciboCrypto.get_cryptomodule(response_encrypt_alg_id)
+        ciphertext = crypto.crypto_encrypt_with_keystring(response_pub_key, message_plaintext)
         message_as_hex = "0x" + ciphertext.hex()
         owner_address = Account.from_key(owner_private_key).address
         info = Recibo.ReciboInfoStruct(owner_address, tx.message_from, metadata, message_as_hex)
-        print(f'info {info[1]}')
         tx_function = self.recibo.functions.sendMsg(info)
         receipt = self.recibo_config.send_transaction(tx_function, owner_private_key)
         return receipt
@@ -776,7 +753,7 @@ class Recibo():
         function, decoded_data = self.recibo_config.get_transaction(tx_hash)
         return ReciboTx(decoded_data)
     
-    def read_msg(self, message_to_address, receiver_key_filename, password=None):
+    def read_msg(self, message_to_address, receiver_key_filename, password=None, encrypt_alg_id=ReciboCrypto.ENCRYPT_PGP):
         """
         Retrieves and decrypts all messages sent to a specific address.
         
@@ -795,7 +772,7 @@ class Recibo():
         events = transfer_events + approve_events + sendmsg_events
         results = []
         for event in events:
-            plaintext, metadata = self.decrypt_tx(event.tx_hash, receiver_key_filename, password)
+            plaintext, metadata = self.decrypt_tx(event.tx_hash, receiver_key_filename, password, encrypt_alg_id)
             decryptedtx = DecryptedReciboTx(event, plaintext, metadata)
             results.append(decryptedtx)
         return results
