@@ -14,9 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from encrypt_pgp import crypto_decrypt, crypto_encrypt, generate_rsa_keys, suppress_pgpy_warnings
-import encrypt
-import encrypt_none
+from encrypt_pgp import suppress_pgpy_warnings
 from recibo import Recibo
 from recibo_crypto import ReciboCrypto
 import os
@@ -94,11 +92,13 @@ class ReciboTest(unittest.TestCase):
             '../client-test-data/bob',
             'bob password'
         )
-        generate_rsa_keys(cls.deployer.outfile, cls.deployer.password, 3072)
-        generate_rsa_keys(cls.alice.outfile, cls.alice.password, 3072)
-        generate_rsa_keys(cls.bob.outfile,cls.bob.password, 3072)
+        crypto = ReciboCrypto.get_cryptomodule(ReciboCrypto.ENCRYPT_PGP)
+        crypto.generate_rsa_keys(cls.deployer.outfile, cls.deployer.password, 3072)
+        crypto.generate_rsa_keys(cls.alice.outfile, cls.alice.password, 3072)
+        crypto.generate_rsa_keys(cls.bob.outfile,cls.bob.password, 3072)
 
         # create a user with RSA key
+        crypto = ReciboCrypto.get_cryptomodule(ReciboCrypto.ENCRYPT_RSA)
         charlie_acc = w3.eth.account.from_key(w3.keccak(text="charlie"))
         w3.anvil.set_balance(charlie_acc.address, test_account_balance)
         cls.charlie = User(
@@ -109,7 +109,7 @@ class ReciboTest(unittest.TestCase):
             'pem',
             ReciboCrypto.ENCRYPT_RSA
         )
-        encrypt.generate_rsa_keys(cls.charlie.outfile,cls.charlie.password, 3072)
+        crypto.generate_rsa_keys(cls.charlie.outfile,cls.charlie.password, 3072)
 
         # create user with NO key
         dave_acc = w3.eth.account.from_key(w3.keccak(text="charlie"))
@@ -128,18 +128,21 @@ class ReciboTest(unittest.TestCase):
 
     def test_encrypt(self):
         msg = 'hello world'
-        ciphertext = crypto_encrypt(self.alice.encrypt_pub, msg)
-        plaintext = crypto_decrypt(self.alice.encrypt_key, ciphertext, self.alice.password)
+        crypto = ReciboCrypto.get_cryptomodule(self.alice.encrypt_alg_id)
+        ciphertext = crypto.crypto_encrypt(self.alice.encrypt_pub, msg)
+        plaintext = crypto.crypto_decrypt(self.alice.encrypt_key, ciphertext, self.alice.password)
         self.assertEqual(msg, plaintext)
 
-        ciphertext = encrypt.crypto_encrypt(self.charlie.encrypt_pub, msg)
-        plaintext = encrypt.crypto_decrypt(self.charlie.encrypt_key, ciphertext, self.charlie.password)
+        crypto = ReciboCrypto.get_cryptomodule(self.charlie.encrypt_alg_id)
+        ciphertext = crypto.crypto_encrypt(self.charlie.encrypt_pub, msg)
+        plaintext = crypto.crypto_decrypt(self.charlie.encrypt_key, ciphertext, self.charlie.password)
         self.assertEqual(msg, plaintext)
 
-        ciphertext = encrypt_none.crypto_encrypt(None, msg)
-        plaintext = encrypt_none.crypto_decrypt(None, ciphertext)
+        crypto = ReciboCrypto.get_cryptomodule(self.dave.encrypt_alg_id)
+        ciphertext = crypto.crypto_encrypt(None, msg)
+        plaintext = crypto.crypto_decrypt(None, ciphertext)
         self.assertEqual(msg, plaintext)
-    """
+    
     def test_total_supply(self):
         expected = 2000
         actual = self.recibo.total_supply()
@@ -425,7 +428,7 @@ class ReciboTest(unittest.TestCase):
         self.get_transaction_and_decrypt_tx_helper(self.bob)
         self.get_transaction_and_decrypt_tx_helper(self.charlie)
         self.get_transaction_and_decrypt_tx_helper(self.dave)
-    """
+    
     def transfer_with_authorization_with_msg_cli_helper(self, receiver):
         owner = self.deployer
         value = 10
@@ -456,10 +459,8 @@ class ReciboTest(unittest.TestCase):
         self.transfer_with_authorization_with_msg_cli_helper(self.charlie)
         self.transfer_with_authorization_with_msg_cli_helper(self.dave)
 
-    def test_send_msg_cli(self):
+    def send_msg_cli_helper(self, receiver):
         owner = self.deployer
-        receiver = self.bob
-        value = 10
         message = 'This is a test message to send over the CLI.'
 
         # Define the command and arguments
@@ -467,79 +468,50 @@ class ReciboTest(unittest.TestCase):
             'python3', 'recibocli.py', 'send_msg',
             '--owner_private_key', str(owner.private_key),
             '--receiver_address', str(receiver.address),
-            '--encrypt_pub_keyfile', receiver.encrypt_pub,
             '--message', message
         ]
+
+        # Add optional arguments if present
+        if receiver.encrypt_pub:
+            command.extend(['--encrypt_pub_keyfile', receiver.encrypt_pub])
+
+        if receiver.encrypt_alg_id:
+            command.extend(['--encrypt_alg_id', str(receiver.encrypt_alg_id)])
 
         # Run the command
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")        
+
+    def test_send_msg_cli(self):
+        self.send_msg_cli_helper(self.bob)
+        self.send_msg_cli_helper(self.charlie)
+        self.send_msg_cli_helper(self.dave)
+    
+    def respond_to_tx_cli_helper(self, receiver):
+        owner = self.deployer
+ 
+        # owner sends message and includes his public key in metadata
+        message = "hello world"
+        message_as_hex = self.recibo.encrypt(receiver.encrypt_pub, message, encrypt_alg=receiver.encrypt_alg_id)
+        metadata = ReciboCrypto.generate_encrypt_metadata(
+            ReciboCrypto.VERSION, 
+            receiver.encrypt_alg_id,  # This is for the receiver's message
+            None, 
+            None, 
+            owner.encrypt_pub,  # This is for the response
+            owner.encrypt_alg_id  # This should be PGP since owner is deployer
+        )
+        receipt = self.recibo.send_msg(owner.private_key, receiver.address, metadata, message_as_hex)
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt['status'], 1)        
 
     def test_respond_to_tx_cli(self):
+        self.respond_to_tx_cli_helper(self.bob)
+        self.respond_to_tx_cli_helper(self.charlie)
+        self.respond_to_tx_cli_helper(self.dave)
+
+    def transfer_with_authorization_with_msg_response_cli_helper(self, receiver):
         owner = self.deployer
-        receiver = self.bob
-
-        # owner sends message and includes his public key in metadata
-        message = "hello world"
-        message_as_hex = Recibo.encrypt(receiver.encrypt_pub, message)
-        metadata = ReciboCrypto.generate_encrypt_metadata(ReciboCrypto.VERSION, ReciboCrypto.ENCRYPT_PGP, None, None, owner.encrypt_pub, owner.encrypt_alg_id)
-        receipt = self.recibo.send_msg(owner.private_key, receiver.address, metadata, message_as_hex) 
-        self.assertIsNotNone(receipt)
-        self.assertEqual(receipt['status'], 1)        
-
-        # respond to tx
-        tx_hash = receipt['transactionHash'].hex()
-        message = 'This is a test message to send over the CLI.'
-
-        # Define the command and arguments
-        command = [
-            'python3', 'recibocli.py', 'respond_to_tx',
-            '--owner_private_key', str(owner.private_key),
-            '--tx_hash', tx_hash,
-            '--message', message
-        ]
-
-        # Run the command
-        result = subprocess.run(command, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")        
-
-    def test_respond_to_tx_crypto_agile_cli(self):
-        owner = self.deployer
-        receiver = self.charlie
-
-        # owner sends message and includes his public key in metadata
-        message = "hello world"
-        message_as_hex = Recibo.encrypt(receiver.encrypt_pub, message, encrypt_alg=receiver.encrypt_alg_id)
-        metadata = ReciboCrypto.generate_encrypt_metadata(ReciboCrypto.VERSION, receiver.encrypt_alg_id, None, None, owner.encrypt_pub, owner.encrypt_alg_id)
-        receipt = self.recibo.send_msg(owner.private_key, receiver.address, metadata, message_as_hex) 
-        self.assertIsNotNone(receipt)
-        self.assertEqual(receipt['status'], 1)        
-
-        # decrypt tx
-        tx_hash = receipt['transactionHash'].hex()
-        tx = self.recibo.get_transaction(tx_hash)
-        plaintext = self.recibo.decrypt(receiver.encrypt_key, tx.message, receiver.password, encrypt_alg=receiver.encrypt_alg_id)
-        self.assertEqual(message, plaintext)
-
-        # respond to tx
-        tx_hash = receipt['transactionHash'].hex()
-        message = 'This is a test message to send over the CLI.'
-
-        # Define the command and arguments
-        command = [
-            'python3', 'recibocli.py', 'respond_to_tx',
-            '--owner_private_key', str(owner.private_key),
-            '--tx_hash', tx_hash,
-            '--message', message
-        ]
-
-        # Run the command
-        result = subprocess.run(command, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")
-
-    def test_transfer_with_authorization_with_msg_response(self):
-        owner = self.deployer
-        receiver = self.bob
         value = 10
         message = 'This is a test message to send over the CLI.'
 
@@ -549,77 +521,117 @@ class ReciboTest(unittest.TestCase):
             '--owner_private_key', str(owner.private_key),
             '--receiver_address', str(receiver.address),
             '--value', str(value),
-            '--encrypt_pub_keyfile', receiver.encrypt_pub,
             '--response_pub_keyfile', owner.encrypt_pub,
             '--message', message
         ]
+
+        # Add optional arguments if present
+        if receiver.encrypt_pub:
+            command.extend(['--encrypt_pub_keyfile', receiver.encrypt_pub])
+
+        if receiver.encrypt_alg_id != ReciboCrypto.ENCRYPT_PGP:
+            command.extend(['--encrypt_alg_id', str(receiver.encrypt_alg_id)])
 
         # Run the command
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")
 
+    def test_transfer_with_authorization_with_msg_response_cli(self):
+        self.transfer_with_authorization_with_msg_response_cli_helper(self.bob)
+        self.transfer_with_authorization_with_msg_response_cli_helper(self.charlie)
+        self.transfer_with_authorization_with_msg_response_cli_helper(self.dave)
 
-
-    def test_transfer_from_with_msg(self):
+    def transfer_from_with_msg_cli_helper(self, receiver):
         owner = self.deployer
-        receiver = self.bob
         value = 10
         message = 'This is a test message to send over the CLI.'
 
-        # Define the command and arguments
+        # Define base command and arguments
         command = [
             'python3', 'recibocli.py', 'transfer_from_with_msg',
             '--owner_private_key', str(owner.private_key),
             '--receiver_address', str(receiver.address),
             '--value', str(value),
-            '--encrypt_pub_keyfile', receiver.encrypt_pub,
             '--message', message
         ]
+
+        # Add optional arguments if present
+        if receiver.encrypt_pub:
+            command.extend(['--encrypt_pub_keyfile', receiver.encrypt_pub])
+
+        if receiver.encrypt_alg_id != ReciboCrypto.ENCRYPT_PGP:
+            command.extend(['--encrypt_alg_id', str(receiver.encrypt_alg_id)])
 
         # Run the command
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")
 
-    def test_permit_with_msg(self):
+    def test_transfer_from_with_msg_cli_(self):
+        self.transfer_from_with_msg_cli_helper(self.bob)
+        self.transfer_from_with_msg_cli_helper(self.charlie)
+        self.transfer_from_with_msg_cli_helper(self.dave)
+
+    def permit_with_msg_cli_helper(self, spender):
         owner = self.deployer
-        spender = self.bob
         value = 10
         message = 'This is a test message to send over the CLI.'
 
-        # Define the command and arguments
+        # Define base command and arguments
         command = [
             'python3', 'recibocli.py', 'permit_with_msg',
             '--owner_private_key', str(owner.private_key),
             '--spender_address', str(spender.address),
             '--value', str(value),
-            '--encrypt_pub_keyfile', spender.encrypt_pub,
             '--message', message
         ]
+
+        # Add optional arguments if present
+        if spender.encrypt_pub:
+            command.extend(['--encrypt_pub_keyfile', spender.encrypt_pub])
+
+        if spender.encrypt_alg_id != ReciboCrypto.ENCRYPT_PGP:
+            command.extend(['--encrypt_alg_id', str(spender.encrypt_alg_id)])
 
         # Run the command
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")
 
-    def test_permit_and_transfer_with_msg(self):
+    def test_permit_with_msg_cli(self):
+        self.permit_with_msg_cli_helper(self.bob)
+        self.permit_with_msg_cli_helper(self.charlie)
+        self.permit_with_msg_cli_helper(self.dave)
+     
+
+    def permit_and_transfer_with_msg_cli_helper(self, receiver):
         owner = self.deployer
-        receiver = self.bob
         value = 10
         message = 'This is a test message to send over the CLI.'
 
-        # Define the command and arguments
+        # Define the base command and arguments
         command = [
             'python3', 'recibocli.py', 'permit_and_transfer_with_msg',
             '--owner_private_key', str(owner.private_key),
             '--receiver_address', str(receiver.address),
             '--value', str(value),
-            '--encrypt_pub_keyfile', receiver.encrypt_pub,
             '--message', message
         ]
+
+        # Add encryption-related parameters only if they exist
+        if receiver.encrypt_pub:
+            command.extend(['--encrypt_pub_keyfile', receiver.encrypt_pub])
+
+        if receiver.encrypt_alg_id != ReciboCrypto.ENCRYPT_PGP:
+            command.extend(['--encrypt_alg_id', str(receiver.encrypt_alg_id)])
 
         # Run the command
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")
 
+    def test_permit_and_transfer_with_msg_cli(self):
+        self.permit_and_transfer_with_msg_cli_helper(self.bob)
+        self.permit_and_transfer_with_msg_cli_helper(self.charlie)
+        self.permit_and_transfer_with_msg_cli_helper(self.dave)
+    
     def read_msg_helper(self, receiver):
         # Define the command and arguments
         command = [
@@ -637,18 +649,13 @@ class ReciboTest(unittest.TestCase):
         if receiver.password:
             command.extend(['--password', str(receiver.password)])
 
-
         # Run the command
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, msg=f"CLI command failed with return code {result.returncode}")
 
     def test_read_msg(self):
-        # try with different keys
-        print("bob")
         self.read_msg_helper(self.bob)
-        print("charlie")
         self.read_msg_helper(self.charlie)
-        print("dave")
         self.read_msg_helper(self.dave)
 
 

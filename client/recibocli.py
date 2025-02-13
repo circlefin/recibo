@@ -81,11 +81,10 @@ def send_msg(args):
 
 def respond_to_tx(args):
     print(f'Execute Recibo.sendMsg()')
-    metadata = metadata_from_args(args)
     receipt = recibo.respond_to_tx(
         args.tx_hash,
         args.owner_private_key,
-        metadata,
+        None,
         args.message)
 
     return print_receipt(receipt)

@@ -688,32 +688,47 @@ class Recibo():
         Args:
             tx_hash (str): Hash of the transaction containing the original message
             owner_private_key  (str): Private key of the responder 
-            metadata  (str): Metadata to attach to response message
+            metadata  (str): Optional additional metadata to merge with generated encryption metadata
             message_plaintext  (str): Plain text response message to encrypt and send
             
         Returns:
             dict: Transaction receipt from sending the response
-            
-        Flow:
-            1. Gets original transaction from blockchain
-            2. Extracts response public key from original metadata json
-            3. Encrypts response message using sender's public key
-            4. Creates ReciboInfo struct with encrypted message
-            5. Sends transaction with response message
-        """
+        """        
         tx = self.get_transaction(tx_hash)
+        
         metadata_dict = json.loads(tx.metadata)
         response_pub_key = metadata_dict.get('response_pub_key', None)
         response_encrypt_alg_id = metadata_dict.get('response_encrypt_alg_id', None)
+        
+        # Generate encryption metadata
+        response_metadata = ReciboCrypto.generate_encrypt_metadata(
+            ReciboCrypto.VERSION,
+            response_encrypt_alg_id
+        )
+
+        # Merge with provided metadata if any
+        if metadata:
+            provided_metadata = json.loads(metadata)
+            response_metadata_json = json.loads(response_metadata)
+            response_metadata_json.update(provided_metadata)
+            response_metadata = json.dumps(response_metadata_json)
+
         crypto = ReciboCrypto.get_cryptomodule(response_encrypt_alg_id)
         ciphertext = crypto.crypto_encrypt_with_keystring(response_pub_key, message_plaintext)
         message_as_hex = "0x" + ciphertext.hex()
+        
+        # Create ReciboInfo struct with encrypted message
         owner_address = Account.from_key(owner_private_key).address
-        info = Recibo.ReciboInfoStruct(owner_address, tx.message_from, metadata, message_as_hex)
+        info = Recibo.ReciboInfoStruct(
+            owner_address, 
+            tx.message_from,
+            json.dumps(response_metadata),
+            message_as_hex
+        )
+        
         tx_function = self.recibo.functions.sendMsg(info)
         receipt = self.recibo_config.send_transaction(tx_function, owner_private_key)
         return receipt
-
 
     def get_events_for(self, message_to_address):
         """
@@ -770,9 +785,15 @@ class Recibo():
         """
         transfer_events, approve_events, sendmsg_events = self.get_events_for(message_to_address)
         events = transfer_events + approve_events + sendmsg_events
+        
         results = []
-        for event in events:
-            plaintext, metadata = self.decrypt_tx(event.tx_hash, receiver_key_filename, password, encrypt_alg_id)
-            decryptedtx = DecryptedReciboTx(event, plaintext, metadata)
-            results.append(decryptedtx)
+        for i, event in enumerate(events, 1):            
+            try:
+                plaintext, metadata = self.decrypt_tx(event.tx_hash, receiver_key_filename, password, encrypt_alg_id)
+                decryptedtx = DecryptedReciboTx(event, plaintext, metadata)
+                results.append(decryptedtx)
+            except Exception as e:
+                print(f"Error decrypting transaction {event.tx_hash}: {str(e)}")
+                continue
+        
         return results
