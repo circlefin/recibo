@@ -14,13 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
-from cryptography.utils import CryptographyDeprecationWarning
-from pgpy.constants import PubKeyAlgorithm, KeyFlags, HashAlgorithm, SymmetricKeyAlgorithm, CompressionAlgorithm
-import pgpy
-from datetime import timedelta
-import os
-
 BLANK_BYTES = "".encode("utf-8")
 
 def read_pub_key(pubfile_name=None):

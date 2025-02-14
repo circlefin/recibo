@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import argparse
-from encrypt import generate_rsa_keys
+from encrypt_pgp import suppress_pgpy_warnings
 from recibo import Recibo
 from recibo_crypto import ReciboCrypto
 from eth_account import Account
@@ -81,10 +81,11 @@ def send_msg(args):
 
 def respond_to_tx(args):
     print(f'Execute Recibo.sendMsg()')
+    metadata = metadata_from_args(args)
     receipt = recibo.respond_to_tx(
         args.tx_hash,
         args.owner_private_key,
-        None,
+        metadata,
         args.message)
 
     return print_receipt(receipt)
@@ -219,7 +220,8 @@ def gen_rsa_key(args):
     if hasattr(args, 'keylength') and args.keylength is not None:
         keylength = args.keylength
 
-    generate_rsa_keys(args.outfile, password, keylength)
+    crypto = ReciboCrypto.get_cryptomodule(args.encrypt_alg_id)
+    crypto.generate_rsa_keys(args.outfile, password, keylength)
     return 0
 
 # all commands that send a transaction with a message have these arguments
@@ -232,6 +234,7 @@ def add_msg_encryption_args_to_parser(parser):
     parser.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
 
 def main():
+    suppress_pgpy_warnings()
     parser = argparse.ArgumentParser(description="CLI for Recibo class methods")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -299,6 +302,7 @@ def main():
     parser_gen_rsa_key.add_argument("--outfile", type=str, required=True, help="Output file name")
     parser_gen_rsa_key.add_argument("--password", type=str, required=False, help="Protects private key, recommended but not required")
     parser_gen_rsa_key.add_argument("--keylength", type=int, required=False, help="Default is 3072")
+    parser_gen_rsa_key.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help="Which encryption algorithm to use: pgp (default), none, or RSA_PKCS1_OAEP_AES_EAX.")
 
     exit_code = 1
     args = parser.parse_args()

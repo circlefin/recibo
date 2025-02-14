@@ -639,7 +639,6 @@ class Recibo():
         Returns:
             str: The encrypted message as a hex string prefixed with "0x".
         """
-        ciphertext = ''
         crypto = ReciboCrypto.get_cryptomodule(encrypt_alg)
         ciphertext = crypto.crypto_encrypt(receiver_pub_key_filename, plaintext)
         return "0x" + ciphertext.hex()
