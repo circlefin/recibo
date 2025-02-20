@@ -119,11 +119,11 @@ python3 recibocli.py deploy \
 
 ```
 
-Bob will need RSA keys to receive encrypted messages.
+Bob will need PGP encryption keys to receive encrypted messages.
 ```
-# We will generate a 3072-bit RSA key with a passphrase.
+# We will generate a 3072-bit PGP key with a passphrase.
 # The public key will be stored in test-data/bob_pub.asc and the private key will be stored in test-data/bob_key.asc.
-python3 recibocli.py gen_rsa_key \
+python3 recibocli.py gen_encrypt_key \
     --outfile test-data/bob \
     --keylength 3072 \
     --password 'my secret passphrase' 
@@ -227,7 +227,7 @@ You can insert a response public key into the metadata of your message. Add the 
 Alice generates a key pair for herself.
 ```
 # The public key will be stored in test-data/alice_pub.asc and the private key will be stored in test-data/alice_key.asc.
-python3 recibocli.py gen_rsa_key \
+python3 recibocli.py gen_encrypt_key \
     --outfile test-data/alice \
     --keylength 3072 \
     --password 'my secret passphrase'
@@ -332,5 +332,5 @@ Troubleshooting: check your yaml config file for the name of the tokena and Reci
 
 ### Encryption/Decryption
 The Recibo smart contract accepts arbitrary encoded messages along with string metadata that
-can contain encoding information. The client library supports PGP encryption (recommended), RSA encryption with AES-256 session key, and plaintext. The CLI uses PGP encryption by default but you can use other encryption algorithms by
-specifying the `--encrypt_alg_id` parameter.
+can contain encoding information. The CLI uses PGP encryption by default but you can use no encryption algorithms by
+specifying the `--encrypt_alg_id none` parameter.
