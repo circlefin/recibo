@@ -93,26 +93,12 @@ class ReciboTest(unittest.TestCase):
             'bob password'
         )
         crypto = ReciboCrypto.get_cryptomodule(ReciboCrypto.ENCRYPT_PGP)
-        crypto.generate_rsa_keys(cls.deployer.outfile, cls.deployer.password, 3072)
-        crypto.generate_rsa_keys(cls.alice.outfile, cls.alice.password, 3072)
-        crypto.generate_rsa_keys(cls.bob.outfile,cls.bob.password, 3072)
-
-        # create a user with RSA key
-        crypto = ReciboCrypto.get_cryptomodule(ReciboCrypto.ENCRYPT_RSA)
-        charlie_acc = w3.eth.account.from_key(w3.keccak(text="charlie"))
-        w3.anvil.set_balance(charlie_acc.address, test_account_balance)
-        cls.charlie = User(
-            charlie_acc.address, 
-            '0x' + charlie_acc.key.hex(),
-            '../client-test-data/charlie',
-            'charlie password',
-            'pem',
-            ReciboCrypto.ENCRYPT_RSA
-        )
-        crypto.generate_rsa_keys(cls.charlie.outfile,cls.charlie.password, 3072)
+        crypto.gen_encrypt_keys(cls.deployer.outfile, cls.deployer.password, 3072)
+        crypto.gen_encrypt_keys(cls.alice.outfile, cls.alice.password, 3072)
+        crypto.gen_encrypt_keys(cls.bob.outfile,cls.bob.password, 3072)
 
         # create user with NO key
-        dave_acc = w3.eth.account.from_key(w3.keccak(text="charlie"))
+        dave_acc = w3.eth.account.from_key(w3.keccak(text="dave"))
         w3.anvil.set_balance(dave_acc.address, test_account_balance)
         cls.dave = User(
             dave_acc.address, 
@@ -123,7 +109,6 @@ class ReciboTest(unittest.TestCase):
             ReciboCrypto.NOENCRYPT
         )
 
-
         cls.recibo.deploy(cls.deployer.private_key)
 
     def test_encrypt(self):
@@ -131,11 +116,6 @@ class ReciboTest(unittest.TestCase):
         crypto = ReciboCrypto.get_cryptomodule(self.alice.encrypt_alg_id)
         ciphertext = crypto.crypto_encrypt(self.alice.encrypt_pub, msg)
         plaintext = crypto.crypto_decrypt(self.alice.encrypt_key, ciphertext, self.alice.password)
-        self.assertEqual(msg, plaintext)
-
-        crypto = ReciboCrypto.get_cryptomodule(self.charlie.encrypt_alg_id)
-        ciphertext = crypto.crypto_encrypt(self.charlie.encrypt_pub, msg)
-        plaintext = crypto.crypto_decrypt(self.charlie.encrypt_key, ciphertext, self.charlie.password)
         self.assertEqual(msg, plaintext)
 
         crypto = ReciboCrypto.get_cryptomodule(self.dave.encrypt_alg_id)
@@ -175,7 +155,6 @@ class ReciboTest(unittest.TestCase):
     
     def test_send_msg(self):
         self.send_msg_helper(self.bob)
-        self.send_msg_helper(self.charlie)
         self.send_msg_helper(self.dave)
 
     def respond_to_tx_helper(self, receiver):
@@ -205,7 +184,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_respond_to_tx(self):
         self.respond_to_tx_helper(self.bob)
-        self.respond_to_tx_helper(self.charlie)
         self.respond_to_tx_helper(self.dave)
 
     def transfer_from_with_msg_helper(self, receiver):
@@ -239,7 +217,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_transfer_from_with_msg(self):
         self.transfer_from_with_msg_helper(self.bob)
-        self.transfer_from_with_msg_helper(self.charlie)
         self.transfer_from_with_msg_helper(self.dave)
 
     def permit_with_msg_helper(self, spender):
@@ -264,7 +241,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_permit_with_msg(self):
         self.permit_with_msg_helper(self.bob)
-        self.permit_with_msg_helper(self.charlie)
         self.permit_with_msg_helper(self.dave)
 
     def permit_and_transfer_from_with_msg_helper(self, receiver):
@@ -291,7 +267,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_permit_and_transfer_from_with_msg(self):
         self.permit_and_transfer_from_with_msg_helper(self.bob)
-        self.permit_and_transfer_from_with_msg_helper(self.charlie)
         self.permit_and_transfer_from_with_msg_helper(self.dave)
 
     def transfer_with_authorization_with_msg_helper(self, receiver):
@@ -338,7 +313,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_transfer_with_authorization_with_msg(self):
         self.transfer_with_authorization_with_msg_helper(self.bob)
-        self.transfer_with_authorization_with_msg_helper(self.charlie)
         self.transfer_with_authorization_with_msg_helper(self.dave)
 
     # dev note: this test assumes this is only test where testnet_alice receives message
@@ -426,7 +400,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_get_transaction_and_decrypt_tx(self):
         self.get_transaction_and_decrypt_tx_helper(self.bob)
-        self.get_transaction_and_decrypt_tx_helper(self.charlie)
         self.get_transaction_and_decrypt_tx_helper(self.dave)
     
     def transfer_with_authorization_with_msg_cli_helper(self, receiver):
@@ -456,7 +429,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_transfer_with_authorization_with_msg_cli(self):
         self.transfer_with_authorization_with_msg_cli_helper(self.bob)
-        self.transfer_with_authorization_with_msg_cli_helper(self.charlie)
         self.transfer_with_authorization_with_msg_cli_helper(self.dave)
 
     def send_msg_cli_helper(self, receiver):
@@ -484,7 +456,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_send_msg_cli(self):
         self.send_msg_cli_helper(self.bob)
-        self.send_msg_cli_helper(self.charlie)
         self.send_msg_cli_helper(self.dave)
     
     def respond_to_tx_cli_helper(self, receiver):
@@ -507,7 +478,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_respond_to_tx_cli(self):
         self.respond_to_tx_cli_helper(self.bob)
-        self.respond_to_tx_cli_helper(self.charlie)
         self.respond_to_tx_cli_helper(self.dave)
 
     def transfer_with_authorization_with_msg_response_cli_helper(self, receiver):
@@ -538,7 +508,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_transfer_with_authorization_with_msg_response_cli(self):
         self.transfer_with_authorization_with_msg_response_cli_helper(self.bob)
-        self.transfer_with_authorization_with_msg_response_cli_helper(self.charlie)
         self.transfer_with_authorization_with_msg_response_cli_helper(self.dave)
 
     def transfer_from_with_msg_cli_helper(self, receiver):
@@ -568,7 +537,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_transfer_from_with_msg_cli_(self):
         self.transfer_from_with_msg_cli_helper(self.bob)
-        self.transfer_from_with_msg_cli_helper(self.charlie)
         self.transfer_from_with_msg_cli_helper(self.dave)
 
     def permit_with_msg_cli_helper(self, spender):
@@ -598,7 +566,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_permit_with_msg_cli(self):
         self.permit_with_msg_cli_helper(self.bob)
-        self.permit_with_msg_cli_helper(self.charlie)
         self.permit_with_msg_cli_helper(self.dave)
      
 
@@ -629,7 +596,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_permit_and_transfer_with_msg_cli(self):
         self.permit_and_transfer_with_msg_cli_helper(self.bob)
-        self.permit_and_transfer_with_msg_cli_helper(self.charlie)
         self.permit_and_transfer_with_msg_cli_helper(self.dave)
     
     def read_msg_helper(self, receiver):
@@ -655,7 +621,6 @@ class ReciboTest(unittest.TestCase):
 
     def test_read_msg(self):
         self.read_msg_helper(self.bob)
-        self.read_msg_helper(self.charlie)
         self.read_msg_helper(self.dave)
 
 

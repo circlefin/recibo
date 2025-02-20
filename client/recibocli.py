@@ -25,6 +25,10 @@ import sys
 CONFIG_FILE = 'anvil_config.yaml'
 recibo = Recibo(CONFIG_FILE)
 
+# encrypt help string
+help_encrypt_str = "Which encryption algorithm to use: pgp (default) or none."
+
+
 def set_config_file(config_file):
     global CONFIG_FILE 
     CONFIG_FILE = config_file
@@ -212,7 +216,7 @@ def read_msg(args):
         print()
     return 0
 
-def gen_rsa_key(args):
+def gen_encrypt_key(args):
     password = None
     keylength = 3072
     if hasattr(args, 'password'):
@@ -221,16 +225,16 @@ def gen_rsa_key(args):
         keylength = args.keylength
 
     crypto = ReciboCrypto.get_cryptomodule(args.encrypt_alg_id)
-    crypto.generate_rsa_keys(args.outfile, password, keylength)
+    crypto.gen_encrypt_key(args.outfile, password, keylength)
     return 0
 
 # all commands that send a transaction with a message have these arguments
 def add_msg_encryption_args_to_parser(parser):
     parser.add_argument("--message", type=str, required=True, help="Message string")
     parser.add_argument("--encrypt_pub_keyfile", type=str, required=False, help="Location of public key file")
-    parser.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help="Which encryption algorithm to use: pgp (default), none, or RSA_PKCS1_OAEP_AES_EAX.")
+    parser.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help=help_encrypt_str)
     parser.add_argument("--response_pub_keyfile", type=str, required=False, default=None, help="Location of sender's public key file. Add to metadata so receiver can respond.")
-    parser.add_argument("--response_encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help="Which encryption algorithm to use for response: pgp (default), none, or RSA_PKCS1_OAEP_AES_EAX.")
+    parser.add_argument("--response_encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help=help_encrypt_str)
     parser.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
 
 def main():
@@ -295,14 +299,14 @@ def main():
     parser_read_msg.add_argument("--decrypt_keyfile", type=str, required=False, help="Message string")
     parser_read_msg.add_argument("--password", type=str, required=False, default=None, help="Password for decrypt_keyfile")
     parser_read_msg.add_argument("--config_file", type=str, required=False, help="Location of recibo yaml config file. Defaults to ./anvil_config.yaml")
-    parser_read_msg.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help="Which encryption algorithm to use: pgp (default), none, or RSA_PKCS1_OAEP_AES_EAX.")
+    parser_read_msg.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help=help_encrypt_str)
  
-    # Subparsers gen_rsa_key
-    parser_gen_rsa_key = subparsers.add_parser("gen_rsa_key", help="Generate RSA key pair and save public and private key to a file")
-    parser_gen_rsa_key.add_argument("--outfile", type=str, required=True, help="Output file name")
-    parser_gen_rsa_key.add_argument("--password", type=str, required=False, help="Protects private key, recommended but not required")
-    parser_gen_rsa_key.add_argument("--keylength", type=int, required=False, help="Default is 3072")
-    parser_gen_rsa_key.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help="Which encryption algorithm to use: pgp (default), none, or RSA_PKCS1_OAEP_AES_EAX.")
+    # Subparsers gen_encrypt_key
+    parser_gen_encrypt_key = subparsers.add_parser("gen_encrypt_key", help="Generate encryption key pair and save public and private key to a file")
+    parser_gen_encrypt_key.add_argument("--outfile", type=str, required=True, help="Output file name")
+    parser_gen_encrypt_key.add_argument("--password", type=str, required=False, help="Protects private key, recommended but not required")
+    parser_gen_encrypt_key.add_argument("--keylength", type=int, required=False, help="Default is 3072")
+    parser_gen_encrypt_key.add_argument("--encrypt_alg_id", type=str, required=False, default=ReciboCrypto.ENCRYPT_PGP, help=help_encrypt_str)
 
     exit_code = 1
     args = parser.parse_args()
@@ -341,8 +345,8 @@ def main():
         exit_code = permit_and_transfer_with_msg(args)
     elif args.command == "read_msg":
         exit_code = read_msg(args)
-    elif args.command == "gen_rsa_key":
-        exit_code = gen_rsa_key(args)
+    elif args.command == "gen_encrypt_key":
+        exit_code = gen_encrypt_key(args)
  
     else:
         parser.print_help()

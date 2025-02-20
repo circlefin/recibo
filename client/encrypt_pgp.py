@@ -109,7 +109,7 @@ def crypto_decrypt(keyfile_name, byte_array, password=None):
         keyfile_string = keyfile.read().decode('utf-8')
         return crypto_decrypt_with_keystring(keyfile_string, byte_array, password)
 
-def generate_rsa_keys(outfile, password=None, keylength=3072, name='', comment="no comment", email="no email"):
+def gen_encrypt_keys(outfile, password=None, keylength=3072, name='', comment="no comment", email="no email"):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", CryptographyDeprecationWarning)
         # PGPy operations here

@@ -1,5 +1,4 @@
 import encrypt_pgp
-import encrypt
 import encrypt_none
 import json
 
@@ -9,7 +8,6 @@ class ReciboCrypto():
 
     # encrypt_alg_ids
     ENCRYPT_PGP =  "pgp"
-    ENCRYPT_RSA = "RSA_PKCS1_OAEP_AES_EAX"
     NOENCRYPT = "none"
 
     # IANA media types
@@ -22,8 +20,6 @@ class ReciboCrypto():
     def get_cryptomodule(encrypt_alg_id):
         if encrypt_alg_id == ReciboCrypto.ENCRYPT_PGP:
             return encrypt_pgp
-        elif encrypt_alg_id == ReciboCrypto.ENCRYPT_RSA:
-            return encrypt
         elif encrypt_alg_id == ReciboCrypto.NOENCRYPT:
             return encrypt_none
         else:

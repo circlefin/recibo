@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This module implements the encryption interface required for  
+# interoperability with recibo_crypto.py. The encrypt_none module
+# for sending messages without encryption, it encodes string data into utf-8.
+
 BLANK_BYTES = "".encode("utf-8")
 
 def read_pub_key(pubfile_name=None):
@@ -37,14 +41,13 @@ def crypto_decrypt_with_keystring(keyfile_string=None, byte_array=BLANK_BYTES, p
     """
     return byte_array.decode("utf-8")
 
-
 def crypto_decrypt(keyfile_name, byte_array=BLANK_BYTES, password=None):
     """
     Returns byte_array decoded into UTF-8 string
     """
     return crypto_decrypt_with_keystring(None, byte_array, None)
 
-def generate_rsa_keys(ignore_args):
+def gen_encrypt_keys(ignore_args):
     """
     Does nothing
     """

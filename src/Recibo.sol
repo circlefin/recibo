@@ -52,7 +52,7 @@ contract Recibo is ReciboEvents {
     function sendMsg(
         ReciboInfo calldata info
     ) public {
-        emit SendMsg(msg.sender, info.messageFrom, info.messageTo);
+        emit SentMsg(msg.sender, info.messageFrom, info.messageTo);
     }
 
     /**

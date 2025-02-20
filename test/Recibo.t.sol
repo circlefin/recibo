@@ -53,7 +53,7 @@ contract ReciboExtensionTest is GaslessTestBase {
 
     function test_sendMsg() public {
         vm.expectEmit(true, true, true, true);
-        emit ReciboEvents.SendMsg(address(this), info.messageFrom, info.messageTo);
+        emit ReciboEvents.SentMsg(address(this), info.messageFrom, info.messageTo);
         recibo.sendMsg(info);
     }
 

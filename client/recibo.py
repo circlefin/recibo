@@ -78,8 +78,8 @@ class TransferWithMsgEvent(Event):
         self.sender = log['args']['from']
         self.value = log['args']['value']
 
-# SendMsgEvent class inheriting from Event        
-class SendMsgEvent(Event):
+# SentMsgEvent class inheriting from Event        
+class SentMsgEvent(Event):
     def __init__(self, log):
         super().__init__(log)
         self.sender = log['args']['from']
@@ -103,7 +103,6 @@ class Recibo():
     MAX_UNIT256 = 115792089237316195423570985008687907853269984665640564039457584007913129639935
 
     PGP_METADATA = ReciboCrypto.generate_encrypt_metadata(ReciboCrypto.VERSION, ReciboCrypto.ENCRYPT_PGP)
-    RSA_METADATA = ReciboCrypto.generate_encrypt_metadata(ReciboCrypto.VERSION, ReciboCrypto.ENCRYPT_RSA)
 
     def __init__(self, config_file):
         """
@@ -633,8 +632,8 @@ class Recibo():
 
         Args:
             receiver_pub_key_filename (str): The filename of the receiver's public key.
-                This must be a DER encoded RSA public key.
             plaintext (str): The plaintext message to be encrypted.
+            encrypt_alg (str): One of the supported algorithms in recobo_crypto module
 
         Returns:
             str: The encrypted message as a hex string prefixed with "0x".
@@ -650,10 +649,9 @@ class Recibo():
 
         Args:
             receiver_key_filename (str): The filename of the receiver's private key.
-                This must a DER encoded RSA private key.
             ciphertext (str): The ciphertext message to be decrypted.
             password (str or None): Password to access receeiver private key
-
+            encrypt_alg (str): One of the supported algorithms in recobo_crypto module
         Returns:
             str: The decrypted plaintext message.
         """
@@ -671,6 +669,7 @@ class Recibo():
             tx_hash (str): The hash of the transaction.
             receiver_key_filename (str): The filename of the receiver's private key.
             password (str or None): Password to access receeiver private key
+            encrypt_alg (str): One of the supported algorithms in recobo_crypto module
 
         Returns:
             str: The decrypted plaintext message from the transaction.
@@ -737,7 +736,7 @@ class Recibo():
             message_to_address (str): The address to filter events by.
 
         Returns:
-            tuple: A tuple containing lists of TransferWithMsgEvent, ApproveWithMsgEvent, and SendMsgEvent objects.
+            tuple: A tuple containing lists of TransferWithMsgEvent, ApproveWithMsgEvent, and SentMsgEvent objects.
         """
         contract = self.recibo_config.get_contract()
         logs = contract.events.TransferWithMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
@@ -746,13 +745,13 @@ class Recibo():
         logs = contract.events.ApproveWithMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
         approve_events = [ApproveWithMsgEvent(log) for log in logs]
 
-        logs = contract.events.SendMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
-        sendmsg_events = [SendMsgEvent(log) for log in logs]
+        logs = contract.events.SentMsg().get_logs(from_block=self.recibo_config.contract_creation_block)
+        sentmsg_events = [SentMsgEvent(log) for log in logs]
 
         transfer_events = [event for event in transfer_events if event.message_to == message_to_address]
         approve_events = [event for event in approve_events if event.message_to == message_to_address]
-        sendmsg_events = [event for event in sendmsg_events if event.message_to == message_to_address]
-        return (transfer_events, approve_events, sendmsg_events)
+        sentmsg_events = [event for event in sentmsg_events if event.message_to == message_to_address]
+        return (transfer_events, approve_events, sentmsg_events)
 
     def get_transaction(self, tx_hash):
         """
@@ -782,8 +781,8 @@ class Recibo():
                 - Decrypted message plaintext
                 - Message metadata
         """
-        transfer_events, approve_events, sendmsg_events = self.get_events_for(message_to_address)
-        events = transfer_events + approve_events + sendmsg_events
+        transfer_events, approve_events, sentmsg_events = self.get_events_for(message_to_address)
+        events = transfer_events + approve_events + sentmsg_events
         
         results = []
         for i, event in enumerate(events, 1):            
