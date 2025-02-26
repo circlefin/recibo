@@ -315,7 +315,7 @@ def main():
 
 
     # need encrypt_pub_keyfile for some commands
-    commands = ["send_msg", "respont_to_tx", "transfer_with_authorization_with_msg", 
+    commands = ["send_msg", "respond_to_tx", "transfer_with_authorization_with_msg", 
                 "transfer_from_with_msg", "permit_with_msg", "permit_and_transfer_with_msg"]
     if args.command in commands:
         if args.encrypt_alg_id != ReciboCrypto.NOENCRYPT and not hasattr(args, "encrypt_pub_keyfile"):

@@ -16,7 +16,7 @@
 
 from encrypt_pgp import suppress_pgpy_warnings
 from recibo import Recibo
-from recibo_crypto import ReciboCrypto
+from recibo_crypto import ReciboCrypto, CryptoModuleNotFoundError
 import os
 import psutil
 import subprocess
@@ -122,6 +122,16 @@ class ReciboTest(unittest.TestCase):
         ciphertext = crypto.crypto_encrypt(None, msg)
         plaintext = crypto.crypto_decrypt(None, ciphertext)
         self.assertEqual(msg, plaintext)
+
+    def test_get_cryptomodule(self):
+        crypto = ReciboCrypto.get_cryptomodule(ReciboCrypto.ENCRYPT_PGP)
+        self.assertIsNotNone(crypto)
+
+        crypto = ReciboCrypto.get_cryptomodule(ReciboCrypto.NOENCRYPT)
+        self.assertIsNotNone(crypto)
+
+        with self.assertRaises(CryptoModuleNotFoundError):
+            crypto = ReciboCrypto.get_cryptomodule("invalid")
     
     def test_total_supply(self):
         expected = 2000

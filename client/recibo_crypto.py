@@ -2,6 +2,10 @@ import encrypt_pgp
 import encrypt_none
 import json
 
+class CryptoModuleNotFoundError(Exception):
+    """Raised when encryption algorithm is not supported"""
+    pass
+
 class ReciboCrypto():
     # current version
     VERSION = "circle-0.2beta"
@@ -23,12 +27,15 @@ class ReciboCrypto():
         elif encrypt_alg_id == ReciboCrypto.NOENCRYPT:
             return encrypt_none
         else:
-            return None
+            raise CryptoModuleNotFoundError(
+                f"Encryption algorithm '{encrypt_alg_id}' not supported. "
+                f"Valid options are: {ReciboCrypto.ENCRYPT_PGP}, {ReciboCrypto.NOENCRYPT}"
+            )
 
     @staticmethod
     def generate_encrypt_metadata(version, encrypt_alg_id, mime=None, encrypt_pub_key_filename=None, response_pub_key_filename = None, response_encrypt_alg_id = None):
-        send_crypto = ReciboCrypto.get_cryptomodule(encrypt_alg_id)
-        respond_crypto = ReciboCrypto.get_cryptomodule(response_encrypt_alg_id)
+        send_crypto = ReciboCrypto.get_cryptomodule(encrypt_alg_id) if encrypt_alg_id else None
+        respond_crypto = ReciboCrypto.get_cryptomodule(response_encrypt_alg_id) if response_encrypt_alg_id else None
 
         metadata = {
             "version": version,
