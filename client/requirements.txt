@@ -1,6 +1,6 @@
 anvil_web3
 eth_abi
+PGPy
 psutil
-pycryptodome
 pyyaml
 web3

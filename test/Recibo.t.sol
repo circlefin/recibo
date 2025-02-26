@@ -50,6 +50,13 @@ contract ReciboExtensionTest is GaslessTestBase {
         (validAfter, validBefore) = makeValidTime(100);
     }
 
+
+    function test_sendMsg() public {
+        vm.expectEmit(true, true, true, true);
+        emit ReciboEvents.SentMsg(address(this), info.messageFrom, info.messageTo);
+        recibo.sendMsg(info);
+    }
+
     function test_transferWithMsg() public {
         vm.startPrank(minter);
         uint startbalance = token.balanceOf(minter);

@@ -46,6 +46,16 @@ contract Recibo is ReciboEvents {
     }
 
     /**
+     * @notice Emits a message
+     * @param info         Message
+     */
+    function sendMsg(
+        ReciboInfo calldata info
+    ) public {
+        emit SentMsg(msg.sender, info.messageFrom, info.messageTo);
+    }
+
+    /**
      * @notice Transfers tokens from msg.sender to receiver
      * @dev Returns true on success, reverts on failure
      * @param to           Token receiver
