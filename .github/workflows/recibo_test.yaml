@@ -29,7 +29,7 @@ env:
 
 jobs:
   run_recibo_tests:
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-small
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
