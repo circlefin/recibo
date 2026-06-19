@@ -52,6 +52,7 @@ contract Recibo is ReciboEvents {
     function sendMsg(
         ReciboInfo calldata info
     ) public {
+        require(info.messageFrom == msg.sender, "Recibo: messageFrom must match sender");
         emit SentMsg(msg.sender, info.messageFrom, info.messageTo);
     }
 
@@ -67,6 +68,7 @@ contract Recibo is ReciboEvents {
         uint256 value,
         ReciboInfo calldata info
     ) public returns (bool) {
+        require(info.messageFrom == msg.sender, "Recibo: messageFrom must match sender");
         emit TransferWithMsg(msg.sender, to, info.messageFrom, info.messageTo, value);
         return _token.transferFrom(msg.sender, to, value);
     }
@@ -94,7 +96,9 @@ contract Recibo is ReciboEvents {
         bytes32 s,
         ReciboInfo calldata info
     ) public {
-        require(owner != address(this));
+        require(owner != address(this), "Recibo: owner cannot be this contract");
+        require(spender != address(this), "Recibo: spender cannot be this contract");
+        require(info.messageFrom == owner, "Recibo: messageFrom must match owner");
         emit ApproveWithMsg(owner, spender, info.messageFrom, info.messageTo, value);
         _token.permit(owner, spender, value, deadline, v, r, s);
     }
@@ -121,6 +125,7 @@ contract Recibo is ReciboEvents {
         bytes32 s,
         ReciboInfo calldata info
     ) public returns (bool) {
+        require(info.messageFrom == msg.sender, "Recibo: messageFrom must match sender");
         emit TransferWithMsg(msg.sender, to, info.messageFrom, info.messageTo, value);
         _token.permit(msg.sender, address(this), value, deadline, v, r, s);
         return _token.transferFrom(msg.sender, to, value);
@@ -148,6 +153,7 @@ contract Recibo is ReciboEvents {
         bytes memory signature,
         ReciboInfo calldata info
     ) public {
+        require(info.messageFrom == from, "Recibo: messageFrom must match from");
         emit TransferWithMsg(from, to, info.messageFrom, info.messageTo, value);
         _token.transferWithAuthorization(from, to, value, validAfter, validBefore, nonce, signature);
     }

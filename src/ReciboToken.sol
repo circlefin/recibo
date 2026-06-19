@@ -42,6 +42,7 @@ contract ReciboToken is ERC20, ReciboEvents {
       * @dev See {ERC20-transfer}.
       */
     function transferWithMsg(address to, uint256 value, address messageFrom, address messageTo, string calldata metadata, bytes calldata message) public returns (bool) {
+        require(messageFrom == msg.sender, "ReciboToken: messageFrom must match sender");
         emit TransferWithMsg(msg.sender, to, messageFrom, messageTo, value);
         return transfer(to, value);
     }
@@ -51,6 +52,7 @@ contract ReciboToken is ERC20, ReciboEvents {
       * @dev See {ERC20-approve}.
       */
     function approveWithMsg(address spender, uint256 value, address messageFrom, address messageTo, string calldata metadata, bytes calldata message) public returns (bool) {
+        require(messageFrom == msg.sender, "ReciboToken: messageFrom must match sender");
         emit ApproveWithMsg(msg.sender, spender, messageFrom, messageTo, value);
         return approve(spender, value);
     }
@@ -60,6 +62,7 @@ contract ReciboToken is ERC20, ReciboEvents {
      * @dev See {ERC20-transferFrom}.
      */
     function transferFromWithMsg(address from, address to, uint256 value, address messageFrom, address messageTo, string calldata metadata, bytes calldata message) public returns (bool) {
+        require(messageFrom == from, "ReciboToken: messageFrom must match from");
         emit TransferWithMsg(from, to, messageFrom, messageTo, value);
         return transferFrom(from, to, value);
     }

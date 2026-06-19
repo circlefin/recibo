@@ -32,7 +32,7 @@ contract ReciboExtensionTest is GaslessTestBase {
     address private minter;
     uint256 private minterKey;
     bytes private msgBytes = abi.encode("message");
-    Recibo.ReciboInfo private info = Recibo.ReciboInfo(minter, user, "metadata", msgBytes);
+    Recibo.ReciboInfo private info;
 
     uint private deadline;
     uint256 private validBefore;
@@ -40,6 +40,7 @@ contract ReciboExtensionTest is GaslessTestBase {
 
     function setUp() public {
         (minter, minterKey) = makeAddrAndKey("minter");
+        info = Recibo.ReciboInfo(minter, user, "metadata", msgBytes);
 
         vm.startPrank(minter);
         token = new GaslessToken("Token", "TKN", 200);
@@ -52,9 +53,12 @@ contract ReciboExtensionTest is GaslessTestBase {
 
 
     function test_sendMsg() public {
+        // Need to call from minter since info.messageFrom == minter
+        vm.startPrank(minter);
         vm.expectEmit(true, true, true, true);
-        emit ReciboEvents.SentMsg(address(this), info.messageFrom, info.messageTo);
+        emit ReciboEvents.SentMsg(minter, info.messageFrom, info.messageTo);
         recibo.sendMsg(info);
+        vm.stopPrank();
     }
 
     function test_transferWithMsg() public {
@@ -92,10 +96,13 @@ contract ReciboExtensionTest is GaslessTestBase {
         bytes32 permit = buildPermitMessage(minter, address(recibo), 40, deadline, token);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(minterKey, permit);
 
+        // Create info with user as messageFrom to pass validation
+        Recibo.ReciboInfo memory userInfo = Recibo.ReciboInfo(user, user, "metadata", msgBytes);
+        
         vm.startPrank(user);
         address fakeSigner = 0x4816Daec8E87b4ebCd4f44e6A16c7019aeFA1150;
         vm.expectRevert(abi.encodeWithSelector(ERC20Permit.ERC2612InvalidSigner.selector, fakeSigner, user));
-        recibo.permitAndTransferFromWithMsg(user, value, deadline, v, r, s, info);
+        recibo.permitAndTransferFromWithMsg(user, value, deadline, v, r, s, userInfo);
         vm.stopPrank();
     }
 

@@ -33,7 +33,7 @@ contract ReciboGasTest is GaslessTestBase, BigMsg {
     address private minter;
     uint256 private minterKey;
     bytes private msgBytes = abi.encode("message");
-    Recibo.ReciboInfo private info = Recibo.ReciboInfo(minter, user, "metadata", msgBytes);
+    Recibo.ReciboInfo private info;
 
     uint private deadline;
     uint256 private validBefore;
@@ -41,6 +41,7 @@ contract ReciboGasTest is GaslessTestBase, BigMsg {
 
     function setUp() public {
         (minter, minterKey) = makeAddrAndKey("minter");
+        info = Recibo.ReciboInfo(minter, user, "metadata", msgBytes);
         deadline = makeDeadline(10);
         (validAfter, validBefore) = makeValidTime(100);
 
